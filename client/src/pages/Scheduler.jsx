@@ -11,7 +11,6 @@ import Content from "../components/Content";
 
 const hungarianWeekdays = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"];
 
-// Monday-start for a given date (00:00 local)
 function startOfWeekMonday(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -29,41 +28,40 @@ function Scheduler() {
   const weekdayIndex = useSelector((state) => state.scheduler.weekdayIndex);
 
   const today = new Date(now);
-  const currentMonday = startOfWeekMonday(selectedDay ?? today);
+  const todayDowMon0 = (today.getDay() + 6) % 7; // 0..6
+  const todayWorkIndex = Math.min(Math.max(todayDowMon0, 0), 4); // clamp to Mon..Fri
 
   const didInitRef = useRef(false);
   useEffect(() => {
     if (didInitRef.current) return;
     didInitRef.current = true;
 
-    const baseMonday = startOfWeekMonday(today);
-    const target = new Date("2025-07-02T00:00:00"); // Thu
-    const targetMonday = startOfWeekMonday(target);
-
-    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
-    const computedWeekOffset = Math.floor(
-      (targetMonday.getTime() - baseMonday.getTime()) / msPerWeek
-    );
-
-    const dowMon0 = (target.getDay() + 6) % 7;
-    const computedWeekdayIndex = Math.min(Math.max(dowMon0, 0), 4);
-
-    dispatch(setWeekOffset(computedWeekOffset));
-    dispatch(setWeekdayIndex(computedWeekdayIndex));
-  }, [dispatch, today]);
+    // Default to "today" in current week
+    dispatch(setWeekOffset(0));
+    dispatch(setWeekdayIndex(todayWorkIndex));
+  }, [dispatch, todayWorkIndex]);
 
   const selectedDayObj =
     selectedDay && !isNaN(new Date(selectedDay).getTime())
       ? new Date(selectedDay)
       : null;
 
+  const atCurrentWeek = weekOffset <= 0;
+
   return (
     <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 text-white">
       <div className="flex justify-center items-center gap-4 my-4">
-        {/* Prev week — always enabled */}
+        {/* Prev week — disabled at current week */}
         <button
-          onClick={() => dispatch(setWeekOffset(weekOffset - 1))}
-          className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
+          onClick={() => {
+            if (!atCurrentWeek) dispatch(setWeekOffset(weekOffset - 1));
+          }}
+          disabled={atCurrentWeek}
+          className={`px-4 py-2 rounded text-white ${
+            atCurrentWeek
+              ? "bg-gray-600 cursor-not-allowed opacity-60"
+              : "bg-blue-500 hover:bg-blue-600"
+          }`}
         >
           ← Előző hét
         </button>
@@ -78,7 +76,7 @@ function Scheduler() {
             : ""}
         </div>
 
-        {/* Next week — always enabled */}
+        {/* Next week — allowed */}
         <button
           onClick={() => dispatch(setWeekOffset(weekOffset + 1))}
           className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
@@ -90,13 +88,19 @@ function Scheduler() {
       <div className="flex gap-2 mb-6 flex-wrap justify-center">
         {hungarianWeekdays.map((day, i) => {
           const isSelected = weekdayIndex === i;
+          const isPastInCurrentWeek = atCurrentWeek && i < todayWorkIndex;
           return (
             <button
               key={day}
-              onClick={() => dispatch(setWeekdayIndex(i))}
+              onClick={() => {
+                if (!isPastInCurrentWeek) dispatch(setWeekdayIndex(i));
+              }}
+              disabled={isPastInCurrentWeek}
               className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                 isSelected
                   ? "bg-lime-400 text-[#0d1b2a]"
+                  : isPastInCurrentWeek
+                  ? "bg-gray-600 text-white cursor-not-allowed opacity-60"
                   : "bg-gray-700 text-white hover:bg-gray-600"
               }`}
             >
